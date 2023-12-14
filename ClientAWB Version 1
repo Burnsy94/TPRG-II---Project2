@@ -1,7 +1,7 @@
 # TPRG II - Server / Client Assignment
 # Alex Burns - 100885375
 # Due December 14th, 2023
-# Demo on December 14th, 2023
+
 
 import socket #taken from week 9 Unicode and Networking
 import sys
