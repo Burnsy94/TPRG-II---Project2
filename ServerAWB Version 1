@@ -1,0 +1,100 @@
+# TPRG II - Server / Client Assignment
+# Alex Burns - 100885375
+# Due December 14th, 2023
+
+import socket
+import json #taken from week 10 JSON data transfer
+import PySimpleGUI as sg
+from threading import Thread
+
+# Setup for the GUI LED
+# Taken from week 9 Unicode and Networking
+sg.theme('Light Brown 4')
+CIRCLE = '●'  # Unicode symbol 9899
+CIRCLE_OUTLINE = '○'  # Another unicode symbol 9898
+
+def LED(color, key):
+    """
+    Create a LED-like element using Unicode characters.
+    :param color: Color of the LED.
+    :param key: Key for accessing the element.
+    :return: PySimpleGUI Text element representing an LED.
+    """
+    return sg.Text(CIRCLE_OUTLINE, text_color=color, key=key)
+
+# Define the function to update the GUI with received data
+def update_gui(window, data):
+    """
+    Update the GUI elements with the data received from the client.
+    :param window: The window object of the GUI.
+    :param data: The data dictionary received from the client.
+    """
+    for key, value in data.items():
+        if key in window.AllKeysDict:
+            window[key].update(value)
+    window['-LED-'].update(CIRCLE if data else CIRCLE_OUTLINE, text_color='Green' if data else 'Red')
+
+# Setup the GUI layout
+# Taken from Assignment 2
+layout = [
+    [sg.Text('Temperature:'), sg.Text('', size=(15, 1), key='temp')],
+    [sg.Text('Voltage:'), sg.Text('', size=(15, 1), key='volts')],
+    [sg.Text('ARM Frequency:'), sg.Text('', size=(15, 1), key='arm_freq')],
+    [sg.Text('Codec Enabled:'), sg.Text('', size=(15, 1), key='codec_enabled')],
+    [sg.Text('ARM Memory:'), sg.Text('', size=(15, 1), key='arm_mem')],
+    [sg.Text('Iteration:'), sg.Text('', size=(15, 1), key='iteration')],
+    [LED('Red', '-LED-'), sg.Button('Exit')]
+]
+
+# Create the window with finalize=True to allow updates before the event loop
+window = sg.Window('Server', layout, font='Any 16', finalize=True)
+
+def start_server(window):
+    """
+    Start the server to listen for incoming connections and process data.
+    :param window: The window object of the GUI.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket: #Taken from Week 9 Unicode and Netowrking
+        server_socket.bind(('192.168.2.18', 5000))
+        server_socket.listen(5)
+        print(f"Server listening on 192.168.2.18:5000")
+
+        while True:
+            client_socket, address = server_socket.accept() #Taken from Week 9 Unicode and Networking
+            print(f"Got connection from {address}")
+
+            with client_socket:
+                while True:
+                    try:
+                        message = client_socket.recv(1024).decode('utf-8')
+                        if not message:
+                            break  # Break the loop if no message is received (client closed connection)
+
+                        print(f"Received data: {message}")
+                        data = json.loads(message) #taken from week 10 JSON data transfer
+                        # Send an event to the GUI thread
+                        window.write_event_value('-UPDATE-', data)
+
+                    except json.JSONDecodeError as e:
+                        print(f"JSON decode error: {e}")
+                    except KeyError as e:
+                        print(f"Key error: {e} - Check the JSON structure sent by the client.")
+                    except Exception as e:
+                        print(f"An unexpected error occurred: {e}")
+
+            print(f"Connection closed with {address}")
+
+# Main event loop
+def run_event_loop(window):
+    """
+    Run the GUI event loop to process events and update the interface.
+    :param window: The window object of the GUI.
+    """
+    while True:
+        event, values = window.read()
+        if event in (sg.WIN_CLOSED, 'Exit'):
+            break
+        elif event == '-UPDATE-':  # Handle the update event
+            update_gui(window, values['-UPDATE-'])  # Update the GUI with
+
+# Code was run through ChatGPT at the end. Was prompted by saying "Complete this. It must run without errors on both a Raspberry Pi and a PC and include a Main guard clause. The script should be executed on the Pi, using another Thonny instance, ensuring both client and server run on the Pi. The server program should create a graphical user interface (GUI) displaying six values obtained from the JSON objects sent by the client. The GUI should also include a Unicode LED that toggles as new data arrives and an Exit button. The code should be well-commented with meaningful details, contain a header, use DOCstrings in any defined functions, and include the use of a 'Try' block for error handling."
